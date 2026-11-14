@@ -1,0 +1,86 @@
+[run]
+data_dir = "data"
+workers = 6
+seed = 1234
+keep_raw = false
+keep_work = false
+batch_docs = 2000
+
+[[crawls]]
+id = "CC-MAIN-2026-25"
+shards = 50
+
+[[crawls]]
+id = "CC-MAIN-2026-34"
+shards = 25
+
+[fetch]
+base_url = "https://data.commoncrawl.org/"
+timeout = 60.0
+retries = 6
+
+[url]
+enabled = true
+blocklist = ""
+
+[language]
+keep = ["en"]
+min_score = 0.65
+
+[gopher_repetition]
+dup_para_frac = 0.30
+dup_para_char_frac = 0.20
+dup_line_frac = 0.30
+dup_line_char_frac = 0.20
+top_ngram_char_frac = [0.20, 0.18, 0.16]
+dup_ngram_char_frac = [0.15, 0.14, 0.13, 0.12, 0.11, 0.10]
+
+[gopher_quality]
+min_words = 50
+max_words = 100000
+min_mean_word_len = 3.0
+max_mean_word_len = 10.0
+max_hash_ratio = 0.1
+max_ellipsis_ratio = 0.1
+max_bullet_lines = 0.9
+max_ellipsis_lines = 0.3
+min_alpha_words = 0.8
+min_stop_words = 2
+
+[c4]
+min_words_per_line = 3
+min_sentences = 5
+max_word_len = 1000
+terminal_punct = false
+strip_citations = true
+drop_lorem_ipsum = true
+drop_curly_bracket = true
+drop_javascript_lines = true
+drop_policy_lines = true
+
+[fineweb]
+min_punct_lines = 0.12
+max_short_lines = 0.67
+short_line_chars = 30
+max_dup_line_chars = 0.10
+
+[dedup]
+cross_crawl = true
+min_words = 50
+bloom_capacity = 20000000
+bloom_fpr = 0.001
+shingle_words = 5
+bands = 14
+rows = 8
+min_similarity = 0.7
+
+[pii]
+emails = true
+ips = true
+phones = true
+
+[eval]
+shards = 20
+max_docs = 40000
+jaccard = 0.75
+floor = 0.5

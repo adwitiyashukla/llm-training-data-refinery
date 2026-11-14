@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-training-data-refinery"
+version = "0.1.0"
+description = "Turns raw Common Crawl web text into a deduplicated, filtered pretraining corpus on a laptop"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Adwitiya Shukla" }]
+dependencies = [
+    "numpy>=2.0",
+    "pyarrow>=15",
+    "duckdb>=1.0",
+    "xxhash>=3.4",
+    "fast-langdetect>=1.0,<2",
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+refinery = "refinery.cli:main"
+
+[tool.setuptools]
+packages = ["refinery"]
+
+[tool.setuptools.package-data]
+refinery = ["blocklist.txt"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
