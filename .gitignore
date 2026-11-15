@@ -6,3 +6,4 @@ venv/
 .ruff_cache/
 data/
 space/metrics-*.json
+space/crawls.json

@@ -84,16 +84,17 @@ def export(cfg, out):
     layout = Layout(cfg.run.data_dir)
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    written = 0
+    crawls = []
     for crawl in cfg.crawls:
         metrics = layout.report(crawl.id) / "metrics.json"
         if metrics.exists():
             write_json(out / f"metrics-{crawl.id}.json", read_json(metrics))
-            written += 1
-    if not written:
+            crawls.append(crawl.id)
+    if not crawls:
         log("no finished crawls yet; run the pipeline first")
         return 1
-    log(f"wrote metrics for {written} crawls to {out}")
+    write_json(out / "crawls.json", crawls)
+    log(f"wrote metrics for {len(crawls)} crawls to {out}")
     return 0
 
 

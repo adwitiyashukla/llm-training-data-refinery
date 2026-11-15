@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>llm-training-data-refinery</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --line: #d1d9e0;
+  --soft: #f6f8fa;
+  --accent: #0969da;
+  --pass: #1a7f37;
+  --fail: #cf222e;
+  --bar: #54aeff;
+  --theory: #bf8700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --line: #3d444d;
+    --soft: #151b23;
+    --accent: #4493f8;
+    --pass: #3fb950;
+    --fail: #f85149;
+    --bar: #388bfd;
+    --theory: #d29922;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.6rem; margin: 0 0 6px; }
+h2 { font-size: 1.1rem; margin: 28px 0 10px; }
+p { margin: 0 0 10px; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 20px 0 16px; }
+.tabs button { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 8px 12px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+select, input, textarea, .examples button { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+select { padding: 4px 8px; margin-left: 8px; }
+input, textarea { width: 100%; padding: 8px 10px; margin: 4px 0 12px; }
+textarea { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; resize: vertical; }
+label { font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0 4px; }
+.stat { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.stat .label, .stat .note { color: var(--muted); font-size: 13px; }
+.stat .value { font-size: 1.5rem; font-weight: 600; }
+.bars { display: grid; grid-template-columns: max-content 1fr max-content; gap: 6px 10px; align-items: center; font-size: 14px; }
+.track { background: var(--soft); border: 1px solid var(--line); border-radius: 4px; height: 14px; overflow: hidden; }
+.fill { display: block; height: 100%; background: var(--bar); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.fail td { color: var(--fail); }
+.examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+.examples button { padding: 6px 12px; cursor: pointer; background: var(--soft); }
+.examples button:hover { border-color: var(--accent); }
+.verdict { font-size: 1.05rem; }
+.kept { color: var(--pass); }
+.dropped { color: var(--fail); }
+pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 12px; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+svg { width: 100%; max-width: 680px; height: auto; display: block; }
+svg text { fill: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+<h1>llm-training-data-refinery</h1>
+<p>This project turns raw Common Crawl web text into clean training text for language models. Here you can see the numbers from a real run and try the same quality rules on any text.</p>
+<p class="muted">Code and write-up: <a href="https://github.com/adwitiyashukla/llm-training-data-refinery" target="_blank" rel="noopener">github.com/adwitiyashukla/llm-training-data-refinery</a></p>
+<div class="tabs" role="tablist">
+<button type="button" role="tab" id="tab-run" aria-controls="run" aria-selected="true">Run summary</button>
+<button type="button" role="tab" id="tab-try" aria-controls="try" aria-selected="false">Try the rules</button>
+</div>
+<section id="run" role="tabpanel" aria-labelledby="tab-run">
+<label>Crawl<select id="crawl"></select></label>
+<div class="stats" id="stats"></div>
+<h2>Funnel</h2>
+<div class="bars" id="bars"></div>
+<div class="scroll"><table id="funnel"></table></div>
+<h2>Why pages were dropped</h2>
+<div class="scroll"><table id="reasons"></table></div>
+<div id="lsh"></div>
+</section>
+<section id="try" role="tabpanel" aria-labelledby="tab-try" hidden>
+<p>Pick an example or paste your own text. Every rule runs on it and you can see which one fails first. The rules run in your browser, using the same Python code as the pipeline.</p>
+<div class="examples" id="examples"></div>
+<label for="url">URL</label>
+<input id="url" type="text" spellcheck="false" autocomplete="off">
+<label for="text">Page text</label>
+<textarea id="text" rows="12" spellcheck="false"></textarea>
+<p id="status" class="muted">Loading Python in your browser. This takes a few seconds on the first visit.</p>
+<p id="verdict" class="verdict"></p>
+<div class="scroll"><table id="checks"></table></div>
+<pre id="lines" hidden></pre>
+</section>
+</main>
+<script type="module">
+const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
+const FASTTEXT = "https://cdn.jsdelivr.net/npm/fasttext.wasm.js@1.0.0/dist/";
+const REPO = "https://raw.githubusercontent.com/adwitiyashukla/llm-training-data-refinery/main/refinery/";
+const MODULES = ["__init__.py", "config.py", "langid.py", "rules.py", "text.py", "blocklist.txt"];
+const SVG = "http://www.w3.org/2000/svg";
+const EXAMPLES = {
+  "News article": ["https://example.com/news/library-reading-room", [
+    "City Library Opens a New Reading Room",
+    "The city library opened a new reading room on Monday after almost a year of work on the old north wing.",
+    "The room has forty desks, large windows that face the park, and a quiet corner with books for young children and their parents.",
+    "Library staff said the project was paid for by a state grant and by donations from more than two hundred local families.",
+    "The head librarian thanked the volunteers who helped move about six thousand books into the new shelves during the summer.",
+    "Visitors can use the room every day from nine in the morning until eight at night, and the first hour of printing is free for students.",
+    "A small opening event with music and free coffee will be held in the main hall on Saturday afternoon.",
+  ].join("\n")],
+  "Menu page": ["https://example.com/home",
+    "Home\nAbout us\nServices\nPricing\nBlog\nCareers\nContact\nLog in\nSign up\nFollow us\nPrivacy\nTerms\nHelp center\nSitemap\nWelcome to our website."],
+  "Repeated spam": ["https://example.com/deals",
+    Array(12).fill("Best deals on running shoes today, free shipping on every single order.").join("\n")],
+  "Not English": ["https://example.com/es/biblioteca", [
+    "La biblioteca de la ciudad tiene una nueva sala de lectura. La sala tiene cuarenta mesas y ventanas grandes que dan al parque.",
+    "Hay una zona tranquila llena de libros para las familias y un espacio para estudiar en grupo.",
+    "La sala abre de lunes a viernes, desde las nueve hasta las ocho de la noche, y la entrada es gratis para todas las personas.",
+  ].join("\n")],
+  "Code snippet": ["https://example.com/blog/python-dicts", [
+    "In this short post I want to show how a dictionary works in Python and why it is so useful for counting things.",
+    "A dictionary maps each key to a value, and looking up a key is fast even when the dictionary is very large.",
+    "Here is a tiny example that counts colors in a list: counts = {'red': 2, 'blue': 1}.",
+    "You can add a new key at any time, and you can loop over the keys to print every count one by one.",
+    "Most people learn this in their first week of Python, and they keep using it for the rest of their career.",
+  ].join("\n")],
+  "Short page": ["https://example.com/missing", "Page not found.\nThe page you are looking for does not exist."],
+};
+
+let demo = null;
+let rules = null;
+let timer = 0;
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Math.round(n).toLocaleString("en-US");
+const share = (part, whole) => (whole ? (100 * part) / whole : 0).toFixed(2) + "%";
+const short = (v) => String(Number(v.toFixed(4)));
+
+function el(tag, text, cls) {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (cls) node.className = cls;
+  return node;
+}
+
+function fillTable(table, head, rows, numeric, rowClass) {
+  table.replaceChildren();
+  const top = table.createTHead().insertRow();
+  head.forEach((name, i) => top.append(el("th", name, numeric[i] ? "num" : "")));
+  const body = table.createTBody();
+  rows.forEach((row, r) => {
+    const tr = body.insertRow();
+    if (rowClass) tr.className = rowClass(r);
+    row.forEach((cell, i) => tr.append(el("td", cell, numeric[i] ? "num" : "")));
+  });
+}
+
+function curve(rows) {
+  const width = 640;
+  const height = 280;
+  const left = 60;
+  const right = 16;
+  const top = 16;
+  const bottom = 46;
+  const lo = rows[0].low;
+  const hi = rows[rows.length - 1].high;
+  const toX = (v) => left + ((v - lo) / (hi - lo)) * (width - left - right);
+  const toY = (v) => top + (1 - v) * (height - top - bottom);
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Chance that a pair becomes a candidate, measured and in theory");
+  const add = (tag, attrs, text) => {
+    const node = document.createElementNS(SVG, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    if (text !== undefined) node.textContent = text;
+    svg.append(node);
+  };
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    add("line", { x1: left, x2: width - right, y1: toY(v), y2: toY(v), style: "stroke: var(--line)" });
+    add("text", { x: left - 8, y: toY(v) + 4, "text-anchor": "end" }, String(v));
+  }
+  for (let v = Math.ceil(lo * 10 - 1e-9) / 10; v <= hi + 1e-9; v += 0.1) {
+    add("text", { x: toX(v), y: height - bottom + 18, "text-anchor": "middle" }, v.toFixed(1));
+  }
+  add("text", { x: (left + width - right) / 2, y: height - 6, "text-anchor": "middle" }, "Jaccard similarity of the pair");
+  const middle = (top + height - bottom) / 2;
+  add("text", { x: 14, y: middle, "text-anchor": "middle", transform: `rotate(-90 14 ${middle})` }, "Chance of becoming a candidate");
+  const points = (key) => rows.map((r) => `${toX((r.low + r.high) / 2).toFixed(1)},${toY(r[key]).toFixed(1)}`).join(" ");
+  add("polyline", { points: points("theory"), style: "fill: none; stroke: var(--theory); stroke-width: 2; stroke-dasharray: 6 4" });
+  add("polyline", { points: points("measured"), style: "fill: none; stroke: var(--bar); stroke-width: 2" });
+  for (const r of rows) {
+    add("circle", { cx: toX((r.low + r.high) / 2), cy: toY(r.measured), r: 3, style: "fill: var(--bar)" });
+  }
+  add("line", { x1: left + 12, x2: left + 36, y1: top + 10, y2: top + 10, style: "stroke: var(--bar); stroke-width: 2" });
+  add("text", { x: left + 42, y: top + 14 }, "measured");
+  add("line", { x1: left + 12, x2: left + 36, y1: top + 28, y2: top + 28, style: "stroke: var(--theory); stroke-width: 2; stroke-dasharray: 6 4" });
+  add("text", { x: left + 42, y: top + 32 }, "theory");
+  return svg;
+}
+
+function showRun(m) {
+  const pages = m.input.pages;
+  const stats = [
+    ["Pages read", fmt(pages), ""],
+    ["Pages kept", fmt(m.published.docs), (100 * m.kept_share).toFixed(1) + "% of pages"],
+    ["Words kept", fmt(m.published.words), ""],
+    ["Pages per second", fmt(m.pages_per_second), ""],
+  ];
+  $("stats").replaceChildren(...stats.map(([label, value, note]) => {
+    const box = el("div", undefined, "stat");
+    box.append(el("div", label, "label"), el("div", value, "value"));
+    if (note) box.append(el("div", note, "note"));
+    return box;
+  }));
+  $("bars").replaceChildren(...m.funnel.flatMap((row) => {
+    const track = el("span", undefined, "track");
+    const fill = el("span", undefined, "fill");
+    fill.style.width = ((100 * row.remaining) / pages).toFixed(2) + "%";
+    track.append(fill);
+    return [el("span", row.step), track, el("span", fmt(row.remaining), "num")];
+  }));
+  fillTable($("funnel"), ["Step", "Dropped", "Remaining", "Remaining share"],
+    m.funnel.map((row) => [row.step, fmt(row.dropped), fmt(row.remaining), share(row.remaining, pages)]),
+    [false, true, true, true]);
+  const reasons = Object.entries(m.reasons).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  fillTable($("reasons"), ["Reason", "Pages"], reasons.map(([reason, count]) => [reason, fmt(count)]), [false, true]);
+  const box = $("lsh");
+  box.replaceChildren();
+  const lsh = (m.eval || {}).lsh;
+  if (!lsh) return;
+  box.append(el("h2", "Near-duplicate check against an exact similarity join"));
+  box.append(el("p", `${fmt(lsh.sample_docs)} documents checked. ${(100 * lsh.removed_close).toFixed(1)}% of removed `
+    + `pages are within Jaccard ${lsh.jaccard} of the page kept in their place, and ${(100 * lsh.doc_recall).toFixed(1)}% `
+    + "of pages with an earlier near duplicate were removed."));
+  if (lsh.curve.length) box.append(curve(lsh.curve));
+}
+
+async function loadRuns() {
+  try {
+    const crawls = await (await fetch("crawls.json")).json();
+    const runs = Object.fromEntries(await Promise.all(
+      crawls.map(async (id) => [id, await (await fetch(`metrics-${id}.json`)).json()])));
+    const select = $("crawl");
+    for (const id of crawls) select.add(new Option(id, id));
+    select.addEventListener("change", () => showRun(runs[select.value]));
+    showRun(runs[crawls[0]]);
+  } catch {
+    $("stats").replaceChildren(el("p", "No run numbers bundled with this demo yet.", "muted"));
+  }
+}
+
+function check() {
+  if (!rules) return;
+  const text = $("text").value;
+  if (!text.trim()) {
+    $("verdict").replaceChildren();
+    $("checks").replaceChildren();
+    $("lines").hidden = true;
+    return;
+  }
+  const out = JSON.parse(demo.judge(rules, $("url").value, text));
+  const head = out.reason ? el("strong", "dropped by " + out.reason, "dropped") : el("strong", "kept", "kept");
+  $("verdict").replaceChildren(head, document.createTextNode(`, language ${out.lang || "none"} (${out.score.toFixed(3)})`));
+  fillTable($("checks"), ["Stage", "Rule", "Value", "Limit", "Result"],
+    out.checks.map((c) => [c.stage, c.rule, short(c.value), short(c.limit), c.ok ? "pass" : "fail"]),
+    [false, false, true, true, false], (r) => (out.checks[r].ok ? "" : "fail"));
+  $("lines").textContent = out.lines.map(([line, gone]) => (gone ? "[removed] " + line : line)).join("\n");
+  $("lines").hidden = false;
+}
+
+async function bytes(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+async function startPython() {
+  const [{ loadPyodide }, { getLIDModel }] = await Promise.all([
+    import(PYODIDE + "pyodide.mjs"),
+    import(FASTTEXT + "main/common.mjs"),
+  ]);
+  const lid = await getLIDModel({
+    wasmPath: FASTTEXT + "core/fastText.common.wasm",
+    modelPath: FASTTEXT + "models/language-identification/assets/lid.176.ftz",
+  });
+  const [py, model, files] = await Promise.all([
+    loadPyodide({ indexURL: PYODIDE }),
+    lid.load(),
+    Promise.all([...MODULES.map((name) => bytes(REPO + name)), bytes("demo.py")]),
+  ]);
+  await py.loadPackage(["numpy", "xxhash"]);
+  py.FS.mkdirTree("/home/pyodide/refinery");
+  MODULES.forEach((name, i) => py.FS.writeFile("/home/pyodide/refinery/" + name, files[i]));
+  py.FS.writeFile("/home/pyodide/demo.py", files[MODULES.length]);
+  demo = py.pyimport("demo");
+  rules = demo.load_rules((line, k) => {
+    const found = model.predict(line, k, 0);
+    const [prob, label] = found.get(0);
+    found.delete();
+    return [label, prob];
+  });
+  $("status").hidden = true;
+  check();
+}
+
+for (const tab of document.querySelectorAll('[role="tab"]')) {
+  tab.addEventListener("click", () => {
+    for (const other of document.querySelectorAll('[role="tab"]')) {
+      const on = other === tab;
+      other.setAttribute("aria-selected", String(on));
+      $(other.getAttribute("aria-controls")).hidden = !on;
+    }
+  });
+}
+
+for (const [name, [url, text]] of Object.entries(EXAMPLES)) {
+  const button = el("button", name);
+  button.type = "button";
+  button.addEventListener("click", () => {
+    $("url").value = url;
+    $("text").value = text;
+    check();
+  });
+  $("examples").append(button);
+}
+
+const schedule = () => {
+  clearTimeout(timer);
+  timer = setTimeout(check, 200);
+};
+$("url").addEventListener("input", schedule);
+$("text").addEventListener("input", schedule);
+[$("url").value, $("text").value] = EXAMPLES["News article"];
+
+loadRuns();
+startPython().catch((error) => {
+  $("status").textContent = "Could not load Python in this browser: " + error.message;
+});
+</script>
+</body>
+</html>

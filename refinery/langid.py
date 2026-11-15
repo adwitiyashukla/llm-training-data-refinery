@@ -1,13 +1,15 @@
 import importlib.resources
 
-import fasttext
-
 
 class LangId:
-    def __init__(self):
-        model = importlib.resources.files("fast_langdetect") / "resources" / "lid.176.ftz"
-        with importlib.resources.as_file(model) as path:
-            self.model = fasttext.load_model(str(path))
+    def __init__(self, model=None):
+        if model is None:
+            import fasttext
+
+            path = importlib.resources.files("fast_langdetect") / "resources" / "lid.176.ftz"
+            with importlib.resources.as_file(path) as file:
+                model = fasttext.load_model(str(file))
+        self.model = model
 
     def __call__(self, text):
         line = text.replace("\n", " ").strip()

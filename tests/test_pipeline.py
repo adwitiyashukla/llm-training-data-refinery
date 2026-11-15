@@ -163,6 +163,7 @@ def test_cli_status_and_explain(tmp_path, web, capsys):
     exported = read_json(tmp_path / "space" / f"metrics-{CRAWL}.json")
     assert exported == read_json(tmp_path / "data" / "reports" / CRAWL / "metrics.json")
     assert "https://" not in json.dumps(exported)
+    assert read_json(tmp_path / "space" / "crawls.json") == [CRAWL]
 
 
 def test_bad_config_exits_cleanly(tmp_path, capsys):
